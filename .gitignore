@@ -1,0 +1,6 @@
+# Ignore virtual environment, data and IDE folders
+.venv/
+data/
+users.txt
+.idea/
+Kursmaterialien/data/
