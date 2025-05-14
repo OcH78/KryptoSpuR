@@ -123,7 +123,7 @@ if username:
 
         df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
         save_user_data(username, df)
-        st.experimental_rerun()
+       
 
     # ---------- Übersicht ----------
     st.subheader('Alle Transaktionen')
