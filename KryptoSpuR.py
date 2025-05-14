@@ -1,4 +1,3 @@
-
 # KryptoSpuR.py
 import streamlit as st
 import pandas as pd
@@ -23,44 +22,44 @@ def register_user(username: str) -> int:
         users = {u.strip() for u in USERS_FILE.read_text().splitlines() if u.strip()}
     if username and username not in users:
         users.add(username)
-        USERS_FILE.write_text('\n'.join(sorted(users)))
+        USERS_FILE.write_text("\n".join(sorted(users)))
     return len(users)
 
 
 def load_user_data(username: str) -> pd.DataFrame:
-    file = DATA_DIR / f'{username}_transactions.csv'
+    file = DATA_DIR / f"{username}_transactions.csv"
     if file.exists():
-        return pd.read_csv(file, parse_dates=['date'])
-    return pd.DataFrame(columns=['type', 'coin', 'quantity', 'price', 'date'])
+        return pd.read_csv(file, parse_dates=["date"])
+    return pd.DataFrame(columns=["type", "coin", "quantity", "price", "date"])
 
 
 def save_user_data(username: str, df: pd.DataFrame):
-    file = DATA_DIR / f'{username}_transactions.csv'
+    file = DATA_DIR / f"{username}_transactions.csv"
     df.to_csv(file, index=False)
 
 
 def fifo_gain(buys: pd.DataFrame, sell_row: pd.Series):
-    qty_to_sell = sell_row['quantity']
+    qty_to_sell = sell_row["quantity"]
     taxable_gain = 0.0
     exempt_gain = 0.0
     remaining_buys = []
-    for _, buy in buys.sort_values('date').iterrows():
+    for _, buy in buys.sort_values("date").iterrows():
         if qty_to_sell <= 0:
             remaining_buys.append(buy)
             continue
-        available = buy['quantity']
+        available = buy["quantity"]
         if available <= 0:
             continue
         lot_qty = min(available, qty_to_sell)
-        gain = lot_qty * (sell_row['price'] - buy['price'])
-        holding_days = (sell_row['date'] - buy['date']).days
+        gain = lot_qty * (sell_row["price"] - buy["price"])
+        holding_days = (sell_row["date"] - buy["date"]).days
         if holding_days >= 365:
             exempt_gain += gain
         else:
             taxable_gain += gain
-        buy['quantity'] -= lot_qty
+        buy["quantity"] -= lot_qty
         qty_to_sell -= lot_qty
-        if buy['quantity'] > 0:
+        if buy["quantity"] > 0:
             remaining_buys.append(buy)
     return taxable_gain, exempt_gain, pd.DataFrame(remaining_buys)
 
@@ -108,7 +107,11 @@ if username:
 
     # ---------- Transaktionen bearbeiten & löschen ----------
     st.subheader('Alle Transaktionen')
-    edited = st.experimental_data_editor(df, num_rows='dynamic', use_container_width=True)
+    # Use stable data_editor API if available
+    if hasattr(st, 'data_editor'):
+        edited = st.data_editor(df, num_rows='dynamic', use_container_width=True)
+    else:
+        edited = st.experimental_data_editor(df, num_rows='dynamic', use_container_width=True)
     if st.button('Änderungen speichern'):
         save_user_data(username, edited)
         st.success('Speicher erfolgreich. Änderungen angewendet!')
@@ -141,3 +144,4 @@ if username:
             st.download_button('PDF herunterladen', data=f, file_name=out_path.name)
 
 st.caption('Hinweis: Keine professionelle Steuerberatung.')
+
