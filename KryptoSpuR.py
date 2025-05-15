@@ -1,5 +1,6 @@
 # KryptoSpuR.py
 import os
+import tempfile
 import streamlit as st
 import pandas as pd
 from datetime import datetime, date
@@ -10,13 +11,23 @@ from sqlalchemy import create_engine, Column, Integer, String, Float, Date, Meta
 from sqlalchemy.engine import Engine
 
 # -------------------------------------------------
-# Konfiguration & DB-Setup
+# TEMP Verzeichnis für DB (writable auf Streamlit Cloud)
 # -------------------------------------------------
-openai.api_key = os.getenv("OPENAI_API_KEY")  # ENV-Variable setzen
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///data/app.db")
+TMP_BASE = Path(tempfile.gettempdir()) / "kryptospur_data"
+TMP_BASE.mkdir(parents=True, exist_ok=True)
+DB_PATH = TMP_BASE / "app.db"
+
+# -------------------------------------------------
+# Konfiguration & SQLite DB Setup
+# -------------------------------------------------
+openai.api_key = os.getenv("OPENAI_API_KEY")  # ENV-Variable is set
+DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DB_PATH}")
 engine: Engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 metadata = MetaData()
 
+# -------------------------------------------------
+# Tabellen-Definition
+# -------------------------------------------------
 transactions = Table(
     'transactions', metadata,
     Column('id', Integer, primary_key=True, autoincrement=True),
@@ -35,10 +46,11 @@ users = Table(
     Column('tax_id', String, nullable=True)
 )
 
+# Tabellen erstellen, nur einmal
 metadata.create_all(engine)
 
 # -------------------------------------------------
-# Helferfunktionen (DB statt CSV)
+# CRUD-Funktionen
 # -------------------------------------------------
 def register_user(username: str, salary: float, tax_id: str) -> int:
     conn = engine.connect()
@@ -75,13 +87,17 @@ def save_user_data(username: str, df: pd.DataFrame):
     conn.close()
 
 # -------------------------------------------------
-# FIFO-Berechnung
+# FIFO-Berechnung & Steuer
 # -------------------------------------------------
 def fifo_gain(buys: pd.DataFrame, sell: pd.Series):
-    qty = sell['quantity']; t_gain = 0.0; e_gain = 0.0; rem = []
+    qty = sell['quantity']
+    t_gain = 0.0
+    e_gain = 0.0
+    rem = []
     for _, b in buys.sort_values('date').iterrows():
         if qty <= 0:
-            rem.append(b); continue
+            rem.append(b)
+            continue
         lot = min(b['quantity'], qty)
         gain = lot * (sell['price'] - b['price'])
         days = (sell['date'] - b['date']).days
@@ -89,7 +105,8 @@ def fifo_gain(buys: pd.DataFrame, sell: pd.Series):
             e_gain += gain
         else:
             t_gain += gain
-        b['quantity'] -= lot; qty -= lot
+        b['quantity'] -= lot
+        qty -= lot
         if b['quantity'] > 0:
             rem.append(b)
     return t_gain, e_gain, pd.DataFrame(rem)
