@@ -1,3 +1,7 @@
 streamlit
 pandas
 fpdf
+sqlalchemy
+openai
+markdown2
+weasyprint
