@@ -20,7 +20,7 @@ DB_PATH = TMP_BASE / "app.db"
 # -------------------------------------------------
 # Konfiguration & SQLite DB Setup
 # -------------------------------------------------
-openai.api_key = os.getenv("OPENAI_API_KEY")  # ENV-Variable is set
+openai.api_key = os.getenv("OPENAI_API_KEY")  # ENV-Variable muss gesetzt sein
 DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DB_PATH}")
 engine: Engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 metadata = MetaData()
@@ -46,17 +46,23 @@ users = Table(
     Column('tax_id', String, nullable=True)
 )
 
-# Tabellen erstellen, nur einmal
+# Tabellen erstellen
 metadata.create_all(engine)
 
 # -------------------------------------------------
 # CRUD-Funktionen
 # -------------------------------------------------
 def register_user(username: str, salary: float, tax_id: str) -> int:
+    """
+    Registriert oder aktualisiert einen Nutzer: löscht bestehenden Eintrag und fügt neuen hinzu.
+    Gibt die aktuelle Anzahl der Nutzer zurück.
+    """
     conn = engine.connect()
-    stmt = users.insert().values(username=username, salary=salary, tax_id=tax_id)
-    stmt = stmt.on_conflict_do_update(index_elements=['username'], set_={'salary': salary, 'tax_id': tax_id})
-    conn.execute(stmt)
+    # Bestehenden Nutzer löschen (falls vorhanden)
+    conn.execute(users.delete().where(users.c.username == username))
+    # Neuen Eintrag erstellen
+    conn.execute(users.insert().values(username=username, salary=salary, tax_id=tax_id))
+    # Anzahl der Nutzer ermitteln
     count = conn.execute(users.count()).scalar()
     conn.close()
     return count
@@ -216,7 +222,7 @@ if username:
     # Editierbare Tabelle
     st.subheader('Alle Transaktionen (älteste zuerst)')
     edited = st.experimental_data_editor(df, num_rows='dynamic', use_container_width=True)
-    if st.button('Änderungen speichern'):
+    if st.button('Änderungen speichern'):\
         to_save = edited.drop(columns=['anzeige'])
         save_user_data(username, to_save)
         st.success('Daten aktualisiert')
