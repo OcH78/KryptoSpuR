@@ -20,7 +20,7 @@ DB_PATH = TMP_BASE / "app.db"
 # -------------------------------------------------
 # Konfiguration & SQLite DB Setup
 # -------------------------------------------------
-openai.api_key = os.getenv("OPENAI_API_KEY")  # ENV-Variable muss gesetzt sein
+openai.api_key = os.getenv("OPENAI_API_KEY")
 DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DB_PATH}")
 engine: Engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 metadata = MetaData()
@@ -46,23 +46,15 @@ users = Table(
     Column('tax_id', String, nullable=True)
 )
 
-# Tabellen erstellen
 metadata.create_all(engine)
 
 # -------------------------------------------------
 # CRUD-Funktionen
 # -------------------------------------------------
 def register_user(username: str, salary: float, tax_id: str) -> int:
-    """
-    Registriert oder aktualisiert einen Nutzer: löscht bestehenden Eintrag und fügt neuen hinzu.
-    Gibt die aktuelle Anzahl der Nutzer zurück.
-    """
     conn = engine.connect()
-    # Bestehenden Nutzer löschen (falls vorhanden)
     conn.execute(users.delete().where(users.c.username == username))
-    # Neuen Eintrag erstellen
     conn.execute(users.insert().values(username=username, salary=salary, tax_id=tax_id))
-    # Anzahl der Nutzer ermitteln
     count = conn.execute(users.count()).scalar()
     conn.close()
     return count
@@ -185,7 +177,6 @@ if username:
     st.caption(f'💼 Aktive Nutzer:innen: {user_count}')
     df = load_user_data(username)
 
-    # Eingabe aktueller Coin-Preise
     coins = sorted(df['coin'].unique())
     prices = {}
     if coins:
@@ -193,7 +184,6 @@ if username:
         for c in coins:
             prices[c] = st.number_input(f'Preis {c} (€)', min_value=0.0, format='%.2f', key=f'pr_{c}')
 
-    # Formular für neue Transaktion
     with st.form('new_tx'):
         st.subheader('Neue Transaktion')
         t_type = st.selectbox('Typ', ['Kauf', 'Verkauf'])
@@ -213,21 +203,18 @@ if username:
         save_user_data(username, df)
         st.info('✅ Transaktion gespeichert')
 
-    # Sortierung und Status-Berechnung
     df = df.sort_values('date').reset_index(drop=True)
     now = pd.to_datetime(datetime.now())
     df['anzeige'] = df.apply(lambda r: '🟢' if (r['type']=='Kauf' and (now-r['date'])>=pd.Timedelta(days=365, minutes=1))
                              else (f"{estimated_tax((prices.get(r['coin'],r['price'])-r['price'])*r['quantity'], salary):.2f} €" if r['type']=='Kauf' else ''), axis=1)
 
-    # Editierbare Tabelle
     st.subheader('Alle Transaktionen (älteste zuerst)')
     edited = st.experimental_data_editor(df, num_rows='dynamic', use_container_width=True)
-    if st.button('Änderungen speichern'):\
+    if st.button('Änderungen speichern'):
         to_save = edited.drop(columns=['anzeige'])
         save_user_data(username, to_save)
         st.success('Daten aktualisiert')
 
-    # Jahresübersicht
     year = st.number_input('Veranlagungsjahr', 2009, date.today().year, date.today().year)
     ydf = df[pd.to_datetime(df['date']).dt.year == year]
     if not ydf.empty:
@@ -236,7 +223,6 @@ if username:
         adjusted = salary + net_gain
         st.info(f'{year}: Gewinn {tg_sum:.2f} €, steuerfrei {net_gain-tg_sum:.2f} €, neues Brutto: {adjusted:.2f} €')
 
-    # PDF Steuerbericht via GPT
     if st.button('Finanzamt-PDF (GPT)'):
         md = markdown_report(df, username, salary, tax_id, date.today().year)
         pdf_data = pdf_from_markdown(md)
